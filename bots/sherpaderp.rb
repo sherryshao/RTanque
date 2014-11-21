@@ -21,15 +21,14 @@ class Sherpaderp < RTanque::Bot::Brain
   end
 
   def health_factor
-    1 - (self.health * 0.01)
+    factor = 1 - (sensors.health * 0.01)
+    (factor >=10) ? factor : 10
   end
 
   # kill derp-to-kill like a savage
   # Notes:
   # DFD = Distance From Derp
   def beast_mode(derp)
-    @derp_last_seen = derp.position
-
     largest_radius = [self.arena.width, self.arena.height].min / 2
     desired_dfd = largest_radius * self.health_factor
     dfd_delta = (desired_dfd - derp.distance).abs
@@ -38,14 +37,16 @@ class Sherpaderp < RTanque::Bot::Brain
     command.radar_heading = derp.heading
 
     if (derp.heading.delta(sensors.turret_heading)).abs < TURRET_FIRE_RANGE
-      command.fire(dtd > 200 ? MAX_FIRE_POWER : MIN_FIRE_POWER)
+      command.fire(derp.distance > 200 ? MAX_FIRE_POWER : MIN_FIRE_POWER)
     end
 
+    angle_from_derp = desired_dfd > derp.distance ? sensors.radar_heading : sensors.radar_heading + 180
+
     if dfd_delta <= 20 # we are at desired distance away
-      command.heading = self.angle_to_next_dot_on_spiral(derp.position, dfd_delta)
+      command.heading = @clockwise ? angle_from_derp + 85 : angle_from_derp - 85
       command.speed = MAX_BOT_SPEED * (1 - (derp.distance / largest_radius))
     else
-      command.heading = desired_dfd > derp.distance ? self.angle_from_derp(derp) : self.angle_from_derp(derp) + 180
+      command.heading = angle_from_derp
       command.speed = MAX_BOT_SPEED
     end
 
@@ -76,16 +77,6 @@ class Sherpaderp < RTanque::Bot::Brain
     end
   end
 
-  # get angle from derp
-  def angle_from_derp(derp)
-    Math.atan2(self.position.y - derp.position.y, self.position.x - derp.position.x) * 180 / Math::PI
-  end
-
-  # get next position on spiral
-  def angle_to_next_dot_on_spiral(center, radius)
-    
-  end
-
   # rotate spiral
   def rotate_spiral
     at_tick_interval(5000) do
@@ -97,6 +88,7 @@ class Sherpaderp < RTanque::Bot::Brain
   def hodor
     at_tick_interval(100) do
       puts "Tick ##{sensors.ticks}!"
+      puts " Arena Size: #{self.arena.width} X #{self.arena.height}"
       puts " Gun Energy: #{sensors.gun_energy}"
       puts " Health: #{sensors.health}"
       puts " Position: (#{sensors.position.x}, #{sensors.position.y})"
